@@ -61,6 +61,7 @@ RUN echo "@testing https://dl-cdn.alpinelinux.org/alpine/edge/main" | tee -a /et
     tesseract --list-langs
 
 EXPOSE 8080/tcp
+USER 10001
 
 # Set user and run command
 ENTRYPOINT ["tini", "--", "/scripts/init.sh"]
