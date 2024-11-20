@@ -11,7 +11,6 @@ import java.nio.file.Files;
 import javax.imageio.ImageIO;
 
 import org.apache.commons.io.IOUtils;
-import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -23,6 +22,7 @@ import org.apache.pdfbox.pdmodel.graphics.image.LosslessFactory;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.apache.pdfbox.pdmodel.graphics.state.PDExtendedGraphicsState;
 import org.apache.pdfbox.util.Matrix;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -36,6 +36,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import stirling.software.SPDF.model.api.security.AddWatermarkRequest;
+import stirling.software.SPDF.service.CustomPDDocumentFactory;
 import stirling.software.SPDF.utils.PdfUtils;
 import stirling.software.SPDF.utils.WebResponseUtils;
 
@@ -43,6 +44,13 @@ import stirling.software.SPDF.utils.WebResponseUtils;
 @RequestMapping("/api/v1/security")
 @Tag(name = "Security", description = "Security APIs")
 public class WatermarkController {
+
+    private final CustomPDDocumentFactory pdfDocumentFactory;
+
+    @Autowired
+    public WatermarkController(CustomPDDocumentFactory pdfDocumentFactory) {
+        this.pdfDocumentFactory = pdfDocumentFactory;
+    }
 
     @PostMapping(consumes = "multipart/form-data", value = "/add-watermark")
     @Operation(
@@ -64,7 +72,7 @@ public class WatermarkController {
         boolean convertPdfToImage = request.isConvertPDFToImage();
 
         // Load the input PDF
-        PDDocument document = Loader.loadPDF(pdfFile.getBytes());
+        PDDocument document = pdfDocumentFactory.load(pdfFile);
 
         // Create a page in the document
         for (PDPage page : document.getPages()) {
@@ -179,18 +187,31 @@ public class WatermarkController {
         float watermarkHeight = heightSpacer + fontSize * textLines.length;
         float pageWidth = page.getMediaBox().getWidth();
         float pageHeight = page.getMediaBox().getHeight();
-        int watermarkRows = (int) (pageHeight / watermarkHeight + 1);
-        int watermarkCols = (int) (pageWidth / watermarkWidth + 1);
+
+        // Calculating the new width and height depending on the angle.
+        float radians = (float) Math.toRadians(rotation);
+        float newWatermarkWidth =
+                (float)
+                        (Math.abs(watermarkWidth * Math.cos(radians))
+                                + Math.abs(watermarkHeight * Math.sin(radians)));
+        float newWatermarkHeight =
+                (float)
+                        (Math.abs(watermarkWidth * Math.sin(radians))
+                                + Math.abs(watermarkHeight * Math.cos(radians)));
+
+        // Calculating the number of rows and columns.
+        int watermarkRows = (int) (pageHeight / newWatermarkHeight + 1);
+        int watermarkCols = (int) (pageWidth / newWatermarkWidth + 1);
 
         // Add the text watermark
-        for (int i = 0; i < watermarkRows; i++) {
-            for (int j = 0; j < watermarkCols; j++) {
+        for (int i = 0; i <= watermarkRows; i++) {
+            for (int j = 0; j <= watermarkCols; j++) {
                 contentStream.beginText();
                 contentStream.setTextMatrix(
                         Matrix.getRotateInstance(
                                 (float) Math.toRadians(rotation),
-                                j * watermarkWidth,
-                                i * watermarkHeight));
+                                j * newWatermarkWidth,
+                                i * newWatermarkHeight));
 
                 for (int k = 0; k < textLines.length; ++k) {
                     contentStream.showText(textLines[k]);

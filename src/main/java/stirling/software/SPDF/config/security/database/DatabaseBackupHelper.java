@@ -24,7 +24,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 
 import lombok.extern.slf4j.Slf4j;
-import stirling.software.SPDF.config.DatabaseBackupInterface;
+import stirling.software.SPDF.config.interfaces.DatabaseBackupInterface;
 import stirling.software.SPDF.utils.FileInfo;
 
 @Slf4j
@@ -33,6 +33,12 @@ public class DatabaseBackupHelper implements DatabaseBackupInterface {
 
     @Value("${spring.datasource.url}")
     private String url;
+
+    @Value("${spring.datasource.username}")
+    private String databaseUsername;
+
+    @Value("${spring.datasource.password}")
+    private String databasePassword;
 
     private Path backupPath = Paths.get("configs/db/backup/");
 
@@ -134,7 +140,8 @@ public class DatabaseBackupHelper implements DatabaseBackupInterface {
                 this.getBackupFilePath("backup_" + dateNow.format(myFormatObj) + ".sql");
         String query = "SCRIPT SIMPLE COLUMNS DROP to ?;";
 
-        try (Connection conn = DriverManager.getConnection(url, "sa", "");
+        try (Connection conn =
+                        DriverManager.getConnection(url, databaseUsername, databasePassword);
                 PreparedStatement stmt = conn.prepareStatement(query)) {
             stmt.setString(1, insertOutputFilePath.toString());
             stmt.execute();
@@ -147,7 +154,8 @@ public class DatabaseBackupHelper implements DatabaseBackupInterface {
     // Retrieves the H2 database version.
     public String getH2Version() {
         String version = "Unknown";
-        try (Connection conn = DriverManager.getConnection(url, "sa", "")) {
+        try (Connection conn =
+                DriverManager.getConnection(url, databaseUsername, databasePassword)) {
             try (Statement stmt = conn.createStatement();
                     ResultSet rs = stmt.executeQuery("SELECT H2VERSION() AS version")) {
                 if (rs.next()) {
@@ -163,6 +171,10 @@ public class DatabaseBackupHelper implements DatabaseBackupInterface {
 
     // Deletes a backup file.
     public boolean deleteBackupFile(String fileName) throws IOException {
+        if (!isValidFileName(fileName)) {
+            log.error("Invalid file name: {}", fileName);
+            return false;
+        }
         Path filePath = this.getBackupFilePath(fileName);
         if (Files.deleteIfExists(filePath)) {
             log.info("Deleted backup file: {}", fileName);
@@ -175,13 +187,18 @@ public class DatabaseBackupHelper implements DatabaseBackupInterface {
 
     // Gets the Path object for a given backup file name.
     public Path getBackupFilePath(String fileName) {
-        return Paths.get(backupPath.toString(), fileName);
+        Path filePath = Paths.get(backupPath.toString(), fileName).normalize();
+        if (!filePath.startsWith(backupPath)) {
+            throw new SecurityException("Path traversal detected");
+        }
+        return filePath;
     }
 
     private boolean executeDatabaseScript(Path scriptPath) {
         String query = "RUNSCRIPT from ?;";
 
-        try (Connection conn = DriverManager.getConnection(url, "sa", "");
+        try (Connection conn =
+                        DriverManager.getConnection(url, databaseUsername, databasePassword);
                 PreparedStatement stmt = conn.prepareStatement(query)) {
             stmt.setString(1, scriptPath.toString());
             stmt.execute();
@@ -201,5 +218,20 @@ public class DatabaseBackupHelper implements DatabaseBackupInterface {
                 log.error("Error creating directories: {}", e.getMessage());
             }
         }
+    }
+
+    private boolean isValidFileName(String fileName) {
+        // Check for invalid characters or sequences
+        return fileName != null
+                && !fileName.contains("..")
+                && !fileName.contains("/")
+                && !fileName.contains("\\")
+                && !fileName.contains(":")
+                && !fileName.contains("*")
+                && !fileName.contains("?")
+                && !fileName.contains("\"")
+                && !fileName.contains("<")
+                && !fileName.contains(">")
+                && !fileName.contains("|");
     }
 }

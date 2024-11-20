@@ -1,6 +1,7 @@
 class PdfActionsManager {
   pageDirection;
   pagesContainer;
+  static selectedPages = []; // Static property shared across all instances
 
   constructor(id) {
     this.pagesContainer = document.getElementById(id);
@@ -70,12 +71,22 @@ class PdfActionsManager {
 
   insertFileButtonCallback(e) {
     var imgContainer = this.getPageContainer(e.target);
-    this.addPdfs(imgContainer);
+    this.addFiles(imgContainer);
   }
 
-  setActions({ movePageTo, addPdfs, rotateElement }) {
+  insertFileBlankButtonCallback(e) {
+    var imgContainer = this.getPageContainer(e.target);
+    this.addFiles(imgContainer, true);
+  }
+
+  splitFileButtonCallback(e) {
+    var imgContainer = this.getPageContainer(e.target);
+    imgContainer.classList.toggle("split-before");
+  }
+
+  setActions({ movePageTo, addFiles, rotateElement }) {
     this.movePageTo = movePageTo;
-    this.addPdfs = addPdfs;
+    this.addFiles = addFiles;
     this.rotateElement = rotateElement;
 
     this.moveUpButtonCallback = this.moveUpButtonCallback.bind(this);
@@ -84,7 +95,10 @@ class PdfActionsManager {
     this.rotateCWButtonCallback = this.rotateCWButtonCallback.bind(this);
     this.deletePageButtonCallback = this.deletePageButtonCallback.bind(this);
     this.insertFileButtonCallback = this.insertFileButtonCallback.bind(this);
+    this.insertFileBlankButtonCallback = this.insertFileBlankButtonCallback.bind(this);
+    this.splitFileButtonCallback = this.splitFileButtonCallback.bind(this);
   }
+
 
   adapt(div) {
     div.classList.add("pdf-actions_container");
@@ -126,6 +140,45 @@ class PdfActionsManager {
 
     div.appendChild(buttonContainer);
 
+    //enerate checkbox to select individual pages
+    const selectCheckbox = document.createElement("input");
+    selectCheckbox.type = "checkbox";
+    selectCheckbox.classList.add("pdf-actions_checkbox", "form-check-input");
+    selectCheckbox.id = `selectPageCheckbox`;
+    selectCheckbox.checked = window.selectAll;
+
+    div.appendChild(selectCheckbox);
+
+    //only show whenpage select mode is active
+    if (!window.selectPage) {
+      selectCheckbox.classList.add("hidden");
+    } else {
+      selectCheckbox.classList.remove("hidden");
+    }
+
+    selectCheckbox.onchange = () => {
+      const pageNumber = Array.from(div.parentNode.children).indexOf(div) + 1;
+      if (selectCheckbox.checked) {
+        //adds to array of selected pages
+        window.selectedPages.push(pageNumber);
+      } else {
+        //remove page from selected pages array
+        const index = window.selectedPages.indexOf(pageNumber);
+        if (index !== -1) {
+          window.selectedPages.splice(index, 1);
+        }
+      }
+
+      if (window.selectedPages.length > 0 && !window.selectPage) {
+        window.toggleSelectPageVisibility();
+      }
+      if (window.selectedPages.length == 0 && window.selectPage) {
+        window.toggleSelectPageVisibility();
+      }
+
+      window.updateSelectedPagesDisplay();
+    };
+
     const insertFileButtonContainer = document.createElement("div");
 
     insertFileButtonContainer.classList.add(
@@ -140,6 +193,18 @@ class PdfActionsManager {
     insertFileButton.onclick = this.insertFileButtonCallback;
     insertFileButtonContainer.appendChild(insertFileButton);
 
+    const splitFileButton = document.createElement("button");
+    splitFileButton.classList.add("btn", "btn-primary", "pdf-actions_split-file-button");
+    splitFileButton.innerHTML = `<span class="material-symbols-rounded">cut</span>`;
+    splitFileButton.onclick = this.splitFileButtonCallback;
+    insertFileButtonContainer.appendChild(splitFileButton);
+
+    const insertFileBlankButton = document.createElement("button");
+    insertFileBlankButton.classList.add("btn", "btn-primary", "pdf-actions_insert-file-blank-button");
+    insertFileBlankButton.innerHTML = `<span class="material-symbols-rounded">insert_page_break</span>`;
+    insertFileBlankButton.onclick = this.insertFileBlankButtonCallback;
+    insertFileButtonContainer.appendChild(insertFileBlankButton);
+
     div.appendChild(insertFileButtonContainer);
 
     // add this button to every element, but only show it on the last one :D
@@ -153,7 +218,7 @@ class PdfActionsManager {
     const insertFileButtonRight = document.createElement("button");
     insertFileButtonRight.classList.add("btn", "btn-primary", "pdf-actions_insert-file-button");
     insertFileButtonRight.innerHTML = `<span class="material-symbols-rounded">add</span>`;
-    insertFileButtonRight.onclick = () => addPdfs();
+    insertFileButtonRight.onclick = () => addFiles();
     insertFileButtonRightContainer.appendChild(insertFileButtonRight);
 
     div.appendChild(insertFileButtonRightContainer);
@@ -167,19 +232,34 @@ class PdfActionsManager {
     };
 
     div.addEventListener("mouseenter", () => {
+      window.updatePageNumbersAndCheckboxes();
       const pageNumber = Array.from(div.parentNode.children).indexOf(div) + 1;
       adaptPageNumber(pageNumber, div);
+      const checkbox = document.getElementById(`selectPageCheckbox-${pageNumber}`);
+      if (checkbox && !window.selectPage) {
+        checkbox.classList.remove("hidden");
+      }
     });
 
     div.addEventListener("mouseleave", () => {
+      const pageNumber = Array.from(div.parentNode.children).indexOf(div) + 1;
       const pageNumberElement = div.querySelector(".page-number");
       if (pageNumberElement) {
         div.removeChild(pageNumberElement);
       }
+      const checkbox = document.getElementById(`selectPageCheckbox-${pageNumber}`);
+      if (checkbox && !window.selectPage) {
+        checkbox.classList.add("hidden");
+      }
+    });
+
+    document.addEventListener("selectedPagesUpdated", () => {
+      window.updateSelectedPagesDisplay();
     });
 
     return div;
   }
+
 }
 
 export default PdfActionsManager;

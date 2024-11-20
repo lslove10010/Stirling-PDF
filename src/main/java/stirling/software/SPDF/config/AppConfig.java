@@ -15,6 +15,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.context.annotation.Scope;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
@@ -126,14 +127,63 @@ public class AppConfig {
     }
 
     @Bean(name = "directoryFilter")
-    public Predicate<Path> processPDFOnlyFilter() {
+    public Predicate<Path> processOnlyFiles() {
         return path -> {
             if (Files.isDirectory(path)) {
                 return !path.toString().contains("processing");
             } else {
-                String fileName = path.getFileName().toString();
-                return fileName.endsWith(".pdf");
+                return true;
             }
         };
+    }
+
+    @Bean(name = "termsAndConditions")
+    public String termsAndConditions() {
+        return applicationProperties.getLegal().getTermsAndConditions();
+    }
+
+    @Bean(name = "privacyPolicy")
+    public String privacyPolicy() {
+        return applicationProperties.getLegal().getPrivacyPolicy();
+    }
+
+    @Bean(name = "cookiePolicy")
+    public String cookiePolicy() {
+        return applicationProperties.getLegal().getCookiePolicy();
+    }
+
+    @Bean(name = "impressum")
+    public String impressum() {
+        return applicationProperties.getLegal().getImpressum();
+    }
+
+    @Bean(name = "accessibilityStatement")
+    public String accessibilityStatement() {
+        return applicationProperties.getLegal().getAccessibilityStatement();
+    }
+
+    @Bean(name = "analyticsPrompt")
+    @Scope("request")
+    public boolean analyticsPrompt() {
+        return applicationProperties.getSystem().getEnableAnalytics() == null
+                || "undefined".equals(applicationProperties.getSystem().getEnableAnalytics());
+    }
+
+    @Bean(name = "analyticsEnabled")
+    @Scope("request")
+    public boolean analyticsEnabled() {
+        if (applicationProperties.getEnterpriseEdition().isEnabled()) return true;
+        return applicationProperties.getSystem().getEnableAnalytics() != null
+                && Boolean.parseBoolean(applicationProperties.getSystem().getEnableAnalytics());
+    }
+
+    @Bean(name = "StirlingPDFLabel")
+    public String stirlingPDFLabel() {
+        return "Stirling-PDF" + " v" + appVersion();
+    }
+
+    @Bean(name = "UUID")
+    public String uuid() {
+        return applicationProperties.getAutomaticallyGenerated().getUUID();
     }
 }

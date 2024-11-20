@@ -1,22 +1,30 @@
 plugins {
     id "java"
-    id "org.springframework.boot" version "3.3.2"
+    id "org.springframework.boot" version "3.3.5"
     id "io.spring.dependency-management" version "1.1.6"
     id "org.springdoc.openapi-gradle-plugin" version "1.8.0"
     id "io.swagger.swaggerhub" version "1.3.2"
-    id "edu.sc.seis.launch4j" version "3.0.5"
+    id "edu.sc.seis.launch4j" version "3.0.6"
     id "com.diffplug.spotless" version "6.25.0"
-    id "com.github.jk1.dependency-license-report" version "2.8"
+    id "com.github.jk1.dependency-license-report" version "2.9"
+	//id "nebula.lint" version "19.0.3"
 }
+
+
 
 import com.github.jk1.license.render.*
 
 ext {
-    springBootVersion = "3.3.2"
+    springBootVersion = "3.3.5"
+    pdfboxVersion = "3.0.3"
+    logbackVersion = "1.5.7"
+    imageioVersion = "3.12.0"
+    lombokVersion = "1.18.36"
+    bouncycastleVersion = "1.78.1"
 }
 
 group = "stirling.software"
-version = "0.27.0"
+version = "0.33.1"
 
 java {
     // 17 is lowest but we support and recommend 21
@@ -26,6 +34,10 @@ java {
 repositories {
     mavenCentral()
     maven { url "https://jitpack.io" }
+    maven { url "https://build.shibboleth.net/nexus/content/repositories/releases/" }
+    maven {
+        url 'https://build.shibboleth.net/maven/releases'
+    }
 }
 
 licenseReport {
@@ -45,6 +57,7 @@ sourceSets {
                 exclude "stirling/software/SPDF/model/AttemptCounter.java"
                 exclude "stirling/software/SPDF/model/Authority.java"
                 exclude "stirling/software/SPDF/model/PersistentLogin.java"
+                exclude "stirling/software/SPDF/model/SessionEntity.java"
                 exclude "stirling/software/SPDF/model/User.java"
                 exclude "stirling/software/SPDF/repository/**"
             }
@@ -67,7 +80,7 @@ launch4j {
 
     errTitle="Encountered error, Do you have Java 21?"
     downloadUrl="https://download.oracle.com/java/21/latest/jdk-21_windows-x64_bin.exe"
-    variables=["BROWSER_OPEN=true", "ENDPOINTS_GROUPS_TO_REMOVE=CLI"]
+    variables=["BROWSER_OPEN=true"]
     jreMinVersion="17"
 
     mutexName="Stirling-PDF"
@@ -94,28 +107,35 @@ spotless {
     }
 }
 
+//gradleLint {
+//        rules=['unused-dependency']
+//    }
 tasks.wrapper {
     gradleVersion = "8.7"
 }
-
+//tasks.withType(JavaCompile) {
+//    options.compilerArgs << "-Xlint:deprecation"
+//}
+configurations.all {
+    exclude group: "org.springframework.boot", module: "spring-boot-starter-tomcat"
+}
 dependencies {
     //security updates
-    implementation "ch.qos.logback:logback-classic:1.5.6"
-    implementation "ch.qos.logback:logback-core:1.5.6"
-    implementation "org.springframework:spring-webmvc:6.1.9"
+    implementation "org.springframework:spring-webmvc:6.1.14"
 
-    implementation("io.github.pixee:java-security-toolkit:1.1.3")
+    implementation("io.github.pixee:java-security-toolkit:1.2.0")
 
     // implementation "org.yaml:snakeyaml:2.2"
     implementation 'com.github.Carleslc.Simple-YAML:Simple-Yaml:1.8.4'
 
     // Exclude Tomcat and include Jetty
-    implementation("org.springframework.boot:spring-boot-starter-web:$springBootVersion") {
-        exclude group: "org.springframework.boot", module: "spring-boot-starter-tomcat"
-    }
+    implementation("org.springframework.boot:spring-boot-starter-web:$springBootVersion")
     implementation "org.springframework.boot:spring-boot-starter-jetty:$springBootVersion"
 
     implementation "org.springframework.boot:spring-boot-starter-thymeleaf:$springBootVersion"
+    implementation 'com.posthog.java:posthog:1.1.1'
+    implementation 'com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:20240325.1'
+
 
     if (System.getenv("DOCKER_ENABLE_SECURITY") != "false") {
         implementation "org.springframework.boot:spring-boot-starter-security:$springBootVersion"
@@ -123,37 +143,51 @@ dependencies {
         implementation "org.springframework.boot:spring-boot-starter-data-jpa:$springBootVersion"
         implementation "org.springframework.boot:spring-boot-starter-oauth2-client:$springBootVersion"
 
+		implementation 'org.springframework.security:spring-security-saml2-service-provider:6.3.4'
+	    implementation 'com.unboundid.product.scim2:scim2-sdk-client:2.3.5'
         //2.2.x requires rebuild of DB file.. need migration path
-        implementation "com.h2database:h2:2.1.214"
+        runtimeOnly "com.h2database:h2:2.1.214"
         // implementation "com.h2database:h2:2.2.224"
+        constraints {
+            implementation "org.opensaml:opensaml-core"
+            implementation "org.opensaml:opensaml-saml-api"
+            implementation "org.opensaml:opensaml-saml-impl"
+        }
+        implementation "org.springframework.security:spring-security-saml2-service-provider"
+
+        implementation 'com.coveo:saml-client:5.0.0'
+
+
     }
 
     testImplementation "org.springframework.boot:spring-boot-starter-test:$springBootVersion"
 
     // Batik
-    implementation "org.apache.xmlgraphics:batik-all:1.17"
+    implementation "org.apache.xmlgraphics:batik-all:1.18"
 
     // TwelveMonkeys
-    implementation "com.twelvemonkeys.imageio:imageio-batik:3.11.0"
-    implementation "com.twelvemonkeys.imageio:imageio-bmp:3.11.0"
-    // implementation "com.twelvemonkeys.imageio:imageio-hdr:3.10.1"
-    // implementation "com.twelvemonkeys.imageio:imageio-icns:3.10.1"
-    // implementation "com.twelvemonkeys.imageio:imageio-iff:3.10.1"
-    implementation "com.twelvemonkeys.imageio:imageio-jpeg:3.11.0"
-    // implementation "com.twelvemonkeys.imageio:imageio-pcx:3.10.1"
-    // implementation "com.twelvemonkeys.imageio:imageio-pict:3.10.1"
-    // implementation "com.twelvemonkeys.imageio:imageio-pnm:3.10.1"
-    // implementation "com.twelvemonkeys.imageio:imageio-psd:3.10.1"
-    // implementation "com.twelvemonkeys.imageio:imageio-sgi:3.10.1"
-    // implementation "com.twelvemonkeys.imageio:imageio-tga:3.10.1"
-    // implementation "com.twelvemonkeys.imageio:imageio-thumbsdb:3.10.1"
-    implementation "com.twelvemonkeys.imageio:imageio-tiff:3.11.0"
-    implementation "com.twelvemonkeys.imageio:imageio-webp:3.11.0"
-    // implementation "com.twelvemonkeys.imageio:imageio-xwd:3.10.1"
+    runtimeOnly "com.twelvemonkeys.imageio:imageio-batik:$imageioVersion"
+    runtimeOnly "com.twelvemonkeys.imageio:imageio-bmp:$imageioVersion"
+    // runtimeOnly "com.twelvemonkeys.imageio:imageio-hdr:$imageioVersion"
+    // runtimeOnly "com.twelvemonkeys.imageio:imageio-icns:$imageioVersion"
+    // runtimeOnly "com.twelvemonkeys.imageio:imageio-iff:$imageioVersion"
+    runtimeOnly "com.twelvemonkeys.imageio:imageio-jpeg:$imageioVersion"
+    // runtimeOnly "com.twelvemonkeys.imageio:imageio-pcx:$imageioVersion@
+    // runtimeOnly "com.twelvemonkeys.imageio:imageio-pict:$imageioVersion"
+    // runtimeOnly "com.twelvemonkeys.imageio:imageio-pnm:$imageioVersion"
+    // runtimeOnly "com.twelvemonkeys.imageio:imageio-psd:$imageioVersion"
+    // runtimeOnly "com.twelvemonkeys.imageio:imageio-sgi:$imageioVersion"
+    // runtimeOnly "com.twelvemonkeys.imageio:imageio-tga:$imageioVersion"
+    // runtimeOnly "com.twelvemonkeys.imageio:imageio-thumbsdb:$imageioVersion"
+    runtimeOnly "com.twelvemonkeys.imageio:imageio-tiff:$imageioVersion"
+    runtimeOnly "com.twelvemonkeys.imageio:imageio-webp:$imageioVersion"
+    // runtimeOnly "com.twelvemonkeys.imageio:imageio-xwd:$imageioVersion"
 
-    implementation "commons-io:commons-io:2.16.1"
+    // Image metadata extractor
+    implementation "com.drewnoakes:metadata-extractor:2.19.0"
+
+    implementation "commons-io:commons-io:2.17.0"
     implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:2.2.0"
-
     //general PDF
 
     // https://mvnrepository.com/artifact/com.opencsv/opencsv
@@ -161,33 +195,33 @@ dependencies {
         exclude group: "commons-logging", module: "commons-logging"
     }
 
-    implementation ("org.apache.pdfbox:pdfbox:3.0.2") {
+    implementation ("org.apache.pdfbox:pdfbox:$pdfboxVersion") {
         exclude group: "commons-logging", module: "commons-logging"
     }
 
-    implementation ("org.apache.pdfbox:xmpbox:3.0.2") {
+    implementation ("org.apache.pdfbox:xmpbox:$pdfboxVersion") {
         exclude group: "commons-logging", module: "commons-logging"
     }
-    implementation "com.github.Carleslc.Simple-YAML:Simple-Yaml:1.8.4"
 
-    implementation "org.bouncycastle:bcprov-jdk18on:1.78.1"
-    implementation "org.bouncycastle:bcpkix-jdk18on:1.78.1"
+    implementation 'org.apache.pdfbox:jbig2-imageio:3.0.4'
+
+    implementation "org.bouncycastle:bcprov-jdk18on:$bouncycastleVersion"
+    implementation "org.bouncycastle:bcpkix-jdk18on:$bouncycastleVersion"
     implementation "org.springframework.boot:spring-boot-starter-actuator:$springBootVersion"
-    implementation "io.micrometer:micrometer-core:1.13.0"
+    implementation "io.micrometer:micrometer-core:1.13.6"
     implementation group: "com.google.zxing", name: "core", version: "3.5.3"
     // https://mvnrepository.com/artifact/org.commonmark/commonmark
-    implementation "org.commonmark:commonmark:0.22.0"
-    implementation "org.commonmark:commonmark-ext-gfm-tables:0.22.0"
+    implementation "org.commonmark:commonmark:0.24.0"
+    implementation "org.commonmark:commonmark-ext-gfm-tables:0.24.0"
     // https://mvnrepository.com/artifact/com.bucket4j/bucket4j_jdk17
-    implementation "com.bucket4j:bucket4j_jdk17-core:8.12.1"
-
-	implementation "com.fathzer:javaluator:3.0.4"
+    implementation "com.bucket4j:bucket4j_jdk17-core:8.14.0"
+    implementation "com.fathzer:javaluator:3.0.5"
 
     developmentOnly("org.springframework.boot:spring-boot-devtools:$springBootVersion")
-    compileOnly "org.projectlombok:lombok:1.18.32"
-    annotationProcessor "org.projectlombok:lombok:1.18.32"
+    compileOnly "org.projectlombok:lombok:$lombokVersion"
+    annotationProcessor "org.projectlombok:lombok:$lombokVersion"
 
-    testImplementation 'org.mockito:mockito-inline:5.2.0'
+    testRuntimeOnly 'org.mockito:mockito-inline:5.2.0'
 }
 
 tasks.withType(JavaCompile).configureEach {
